@@ -9,8 +9,9 @@ import { swaggerSpec, swaggerHtml } from "./swagger.js";
 const app = express();
 
 // Allow cross-origin requests from the frontend (comma-separated list, or "*" for any origin).
+// Frontends deployed on Vercel (https://*.vercel.app) are always allowed.
 const origins = (process.env.CORS_ORIGIN || "*").split(",").map((o) => o.trim().replace(/\/$/, ""));
-app.use(cors({ origin: origins.includes("*") ? "*" : origins }));
+app.use(cors({ origin: origins.includes("*") ? "*" : [...origins, /^https:\/\/[a-z0-9-]+\.vercel\.app$/] }));
 app.use(express.json());
 
 // Swagger UI assets load from a CDN, so nothing from node_modules has to be bundled into the Vercel function.
