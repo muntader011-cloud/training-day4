@@ -34,3 +34,35 @@ npm run dev
 
 Open http://localhost:5173. The **Customers** tab handles CRUD. The **AI Assistant** tab is the natural-language chat.
 The backend URL is set by `VITE_API_URL` in `frontend/.env`.
+
+## Deploying to Vercel
+
+Create **two Vercel projects** from this repository. Each one uses a different **Root Directory**.
+
+### 1. Backend (deploy first)
+
+| Setting          | Value                         |
+| ---------------- | ----------------------------- |
+| Root Directory   | `backend`                     |
+| Framework Preset | Other                         |
+| Build Command    | _(leave empty)_               |
+
+Environment variables:
+
+| Name                | Value                                                         |
+| ------------------- | ------------------------------------------------------------- |
+| `DATABASE_URL`      | your PostgreSQL connection string                             |
+| `ANTHROPIC_API_KEY` | your Anthropic API key                                        |
+| `CORS_ORIGIN`       | the frontend URL, e.g. `https://your-frontend.vercel.app` (set it after step 2, then redeploy) |
+
+How it runs: `backend/vercel.json` rewrites every path to `api/index.js`. That file exports the Express app from `src/app.js` as a serverless function, while `src/server.js` is only used locally. Swagger UI assets load from jsDelivr, and the spec is served at `/swagger.json` with a relative server URL. As a result, `https://<backend>.vercel.app/swagger` works with nothing from `node_modules` bundled.
+
+### 2. Frontend
+
+| Setting          | Value      |
+| ---------------- | ---------- |
+| Root Directory   | `frontend` |
+| Framework Preset | Vite       |
+
+Environment variable: `VITE_API_URL` = the backend URL, e.g. `https://your-backend.vercel.app` (no trailing slash).
+Vite reads it at build time, so redeploy the frontend whenever you change it.

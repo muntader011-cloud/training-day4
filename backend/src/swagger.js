@@ -23,112 +23,139 @@ const ref = (name) => ({ $ref: `#/components/schemas/${name}` });
 const notFound = { description: "Customer not found", content: json(ref("Error")) };
 const badRequest = { description: "Invalid input", content: json(ref("Error")) };
 
-export function buildSwaggerSpec(port) {
-  return {
-    openapi: "3.0.3",
-    info: {
-      title: "Customers API",
-      version: "1.0.0",
-      description:
-        "CRUD operations on the `customers` table plus an AI agent endpoint that answers natural-language questions about customer data. No authentication required.",
+export const swaggerSpec = {
+  openapi: "3.0.3",
+  info: {
+    title: "Customers API",
+    version: "1.0.0",
+    description:
+      "CRUD operations on the `customers` table plus an AI agent endpoint that answers natural-language questions about customer data. No authentication required.",
+  },
+  // Relative, so "Try it out" targets whichever host serves the docs (localhost or the Vercel domain).
+  servers: [{ url: "/" }],
+  tags: [{ name: "Customers" }, { name: "Agent" }, { name: "Health" }],
+  components: {
+    schemas: {
+      Customer: customer,
+      CustomerInput: customerInput,
+      CustomerUpdate: { ...customerInput, required: [] },
+      Error: error,
     },
-    servers: [{ url: `http://localhost:${port}` }],
-    tags: [{ name: "Customers" }, { name: "Agent" }, { name: "Health" }],
-    components: {
-      schemas: {
-        Customer: customer,
-        CustomerInput: customerInput,
-        CustomerUpdate: { ...customerInput, required: [] },
-        Error: error,
+  },
+  paths: {
+    "/api/customers": {
+      get: {
+        tags: ["Customers"],
+        summary: "List all customers, or search by name",
+        parameters: [
+          { name: "name", in: "query", required: false, description: "Partial, case-insensitive name filter", schema: { type: "string" } },
+        ],
+        responses: { 200: { description: "Customers", content: json({ type: "array", items: ref("Customer") }) } },
+      },
+      post: {
+        tags: ["Customers"],
+        summary: "Create a customer",
+        requestBody: { required: true, content: json(ref("CustomerInput")) },
+        responses: { 201: { description: "Created", content: json(ref("Customer")) }, 400: badRequest },
       },
     },
-    paths: {
-      "/api/customers": {
-        get: {
-          tags: ["Customers"],
-          summary: "List all customers, or search by name",
-          parameters: [
-            { name: "name", in: "query", required: false, description: "Partial, case-insensitive name filter", schema: { type: "string" } },
-          ],
-          responses: { 200: { description: "Customers", content: json({ type: "array", items: ref("Customer") }) } },
-        },
-        post: {
-          tags: ["Customers"],
-          summary: "Create a customer",
-          requestBody: { required: true, content: json(ref("CustomerInput")) },
-          responses: { 201: { description: "Created", content: json(ref("Customer")) }, 400: badRequest },
-        },
+    "/api/customers/{id}": {
+      parameters: [idParam],
+      get: {
+        tags: ["Customers"],
+        summary: "Get a customer by id",
+        responses: { 200: { description: "Customer", content: json(ref("Customer")) }, 404: notFound },
       },
-      "/api/customers/{id}": {
-        parameters: [idParam],
-        get: {
-          tags: ["Customers"],
-          summary: "Get a customer by id",
-          responses: { 200: { description: "Customer", content: json(ref("Customer")) }, 404: notFound },
-        },
-        put: {
-          tags: ["Customers"],
-          summary: "Update a customer (name and/or email)",
-          requestBody: { required: true, content: json(ref("CustomerUpdate")) },
-          responses: { 200: { description: "Updated", content: json(ref("Customer")) }, 400: badRequest, 404: notFound },
-        },
-        delete: {
-          tags: ["Customers"],
-          summary: "Delete a customer",
-          responses: {
-            200: {
-              description: "Deleted",
-              content: json({ type: "object", properties: { message: { type: "string" }, customer: ref("Customer") } }),
-            },
-            404: notFound,
+      put: {
+        tags: ["Customers"],
+        summary: "Update a customer (name and/or email)",
+        requestBody: { required: true, content: json(ref("CustomerUpdate")) },
+        responses: { 200: { description: "Updated", content: json(ref("Customer")) }, 400: badRequest, 404: notFound },
+      },
+      delete: {
+        tags: ["Customers"],
+        summary: "Delete a customer",
+        responses: {
+          200: {
+            description: "Deleted",
+            content: json({ type: "object", properties: { message: { type: "string" }, customer: ref("Customer") } }),
           },
+          404: notFound,
         },
       },
-      "/api/agent": {
-        post: {
-          tags: ["Agent"],
-          summary: "Ask a natural-language question about customers",
-          description:
-            "Claude answers using tools that list, search, add, update and delete customers. Pass previous turns in `history` for a multi-turn conversation.",
-          requestBody: {
-            required: true,
+    },
+    "/api/agent": {
+      post: {
+        tags: ["Agent"],
+        summary: "Ask a natural-language question about customers",
+        description:
+          "Claude answers using tools that list, search, add, update and delete customers. Pass previous turns in `history` for a multi-turn conversation.",
+        requestBody: {
+          required: true,
+          content: json({
+            type: "object",
+            required: ["message"],
+            properties: {
+              message: { type: "string", example: "Get all customers" },
+              history: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: { role: { type: "string", enum: ["user", "assistant"] }, content: { type: "string" } },
+                },
+              },
+            },
+          }),
+        },
+        responses: {
+          200: {
+            description: "Agent reply",
             content: json({
               type: "object",
-              required: ["message"],
               properties: {
-                message: { type: "string", example: "Get all customers" },
-                history: {
+                reply: { type: "string" },
+                toolCalls: {
                   type: "array",
-                  items: {
-                    type: "object",
-                    properties: { role: { type: "string", enum: ["user", "assistant"] }, content: { type: "string" } },
-                  },
+                  items: { type: "object", properties: { name: { type: "string" }, input: { type: "object" } } },
                 },
               },
             }),
           },
-          responses: {
-            200: {
-              description: "Agent reply",
-              content: json({
-                type: "object",
-                properties: {
-                  reply: { type: "string" },
-                  toolCalls: {
-                    type: "array",
-                    items: { type: "object", properties: { name: { type: "string" }, input: { type: "object" } } },
-                  },
-                },
-              }),
-            },
-            400: badRequest,
-            503: { description: "ANTHROPIC_API_KEY not configured", content: json(ref("Error")) },
-          },
+          400: badRequest,
+          503: { description: "ANTHROPIC_API_KEY not configured", content: json(ref("Error")) },
         },
       },
-      "/api/health": {
-        get: { tags: ["Health"], summary: "Health check (includes database connectivity)", responses: { 200: { description: "OK" } } },
-      },
     },
-  };
-}
+    "/api/health": {
+      get: { tags: ["Health"], summary: "Health check (includes database connectivity)", responses: { 200: { description: "OK" } } },
+    },
+  },
+};
+
+// Pinned to the swagger-ui-dist version previously bundled by swagger-ui-express.
+const SWAGGER_UI_CDN = "https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.34.0";
+
+export const swaggerHtml = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Customers API - Swagger UI</title>
+    <link rel="icon" type="image/png" href="${SWAGGER_UI_CDN}/favicon-32x32.png" />
+    <link rel="stylesheet" href="${SWAGGER_UI_CDN}/swagger-ui.css" />
+  </head>
+  <body>
+    <div id="swagger-ui"></div>
+    <script src="${SWAGGER_UI_CDN}/swagger-ui-bundle.js" crossorigin></script>
+    <script src="${SWAGGER_UI_CDN}/swagger-ui-standalone-preset.js" crossorigin></script>
+    <script>
+      window.ui = SwaggerUIBundle({
+        url: "/swagger.json",
+        dom_id: "#swagger-ui",
+        deepLinking: true,
+        presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
+        layout: "StandaloneLayout",
+      });
+    </script>
+  </body>
+</html>`;
