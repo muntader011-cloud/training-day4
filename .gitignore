@@ -1,0 +1,17 @@
+# Dependencies & build output
+node_modules/
+dist/
+.vercel/
+
+# Environment files (secrets) - only the .env.example templates are committed
+.env
+.env.*
+!.env.example
+
+# Contains the database connection string with credentials
+Prompt.txt
+
+# Logs & OS files
+*.log
+.DS_Store
+Thumbs.db
