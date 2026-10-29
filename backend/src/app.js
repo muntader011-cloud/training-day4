@@ -4,6 +4,8 @@ import cors from "cors";
 import { pool } from "./db.js";
 import customersRouter from "./routes/customers.js";
 import agentRouter from "./routes/agent.js";
+import authRouter from "./routes/auth.js";
+import { requireAuth } from "./auth.js";
 import { swaggerSpec, swaggerHtml } from "./swagger.js";
 
 const app = express();
@@ -28,14 +30,15 @@ app.get("/api/health", async (req, res) => {
   }
 });
 
-app.use("/api/customers", customersRouter);
-app.use("/api/agent", agentRouter);
+app.use("/api/auth", authRouter);
+app.use("/api/customers", requireAuth, customersRouter);
+app.use("/api/agent", requireAuth, agentRouter);
 
 app.use((req, res) => res.status(404).json({ error: "Not found" }));
 
 // Express 5 forwards rejected promises from async handlers here.
 app.use((err, req, res, next) => {
-  if (err.code === "23505") return res.status(409).json({ error: "A customer with that value already exists" });
+  if (err.code === "23505") return res.status(409).json({ error: "A record with that value already exists" });
   console.error(err);
   res.status(err.status || 500).json({ error: err.message || "Internal server error" });
 });

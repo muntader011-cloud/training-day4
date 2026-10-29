@@ -1,8 +1,8 @@
 import { Router } from "express";
 import * as db from "../db.js";
+import { EMAIL_RE } from "../auth.js";
 
 const router = Router();
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function parseId(req, res) {
   const id = Number.parseInt(req.params.id, 10);
@@ -24,13 +24,13 @@ function validate(body, { partial }) {
 
 router.get("/", async (req, res) => {
   const { name } = req.query;
-  res.json(name ? await db.searchCustomersByName(String(name)) : await db.getAllCustomers());
+  res.json(name ? await db.searchCustomersByName(req.user.id, String(name)) : await db.getAllCustomers(req.user.id));
 });
 
 router.get("/:id", async (req, res) => {
   const id = parseId(req, res);
   if (id === null) return;
-  const customer = await db.getCustomerById(id);
+  const customer = await db.getCustomerById(req.user.id, id);
   if (!customer) return res.status(404).json({ error: "Customer not found" });
   res.json(customer);
 });
@@ -38,7 +38,7 @@ router.get("/:id", async (req, res) => {
 router.post("/", async (req, res) => {
   const error = validate(req.body, { partial: false });
   if (error) return res.status(400).json({ error });
-  const customer = await db.createCustomer({ name: req.body.name.trim(), email: req.body.email.trim() });
+  const customer = await db.createCustomer(req.user.id, { name: req.body.name.trim(), email: req.body.email.trim() });
   res.status(201).json(customer);
 });
 
@@ -47,7 +47,7 @@ router.put("/:id", async (req, res) => {
   if (id === null) return;
   const error = validate(req.body, { partial: true });
   if (error) return res.status(400).json({ error });
-  const customer = await db.updateCustomer(id, {
+  const customer = await db.updateCustomer(req.user.id, id, {
     name: req.body.name?.trim(),
     email: req.body.email?.trim(),
   });
@@ -58,7 +58,7 @@ router.put("/:id", async (req, res) => {
 router.delete("/:id", async (req, res) => {
   const id = parseId(req, res);
   if (id === null) return;
-  const customer = await db.deleteCustomer(id);
+  const customer = await db.deleteCustomer(req.user.id, id);
   if (!customer) return res.status(404).json({ error: "Customer not found" });
   res.json({ message: "Customer deleted", customer });
 });

@@ -1,7 +1,10 @@
 import Anthropic from "@anthropic-ai/sdk";
 import * as db from "./db.js";
 
-const MODEL = "claude-opus-5-5";
+const MODEL = process.env.ANTHROPIC_MODEL || "claude-opus-5-5";
+const EFFORT = process.env.AGENT_EFFORT || "low";
+// Server-side refusal fallbacks are not available on Haiku models.
+const SUPPORTS_FALLBACK = !MODEL.startsWith("claude-haiku");
 const MAX_TOOL_ROUNDS = 8;
 
 const SYSTEM_PROMPT = `You are a helpful assistant for a customer management application.
@@ -9,6 +12,9 @@ Customer records have the fields id, name and email, and are stored in a Postgre
 Use the provided tools to read or change customer data; never invent customer records.
 Before deleting a customer, make sure the request clearly identifies exactly one customer.
 Keep answers concise. When listing several customers, use a short markdown table.`;
+
+const systemPromptFor = (user) =>
+  `${SYSTEM_PROMPT}\nYou are assisting the sales user ${user.name} (${user.email}). You can only see and change this user's customers.`;
 
 const tools = [
   {
@@ -75,20 +81,20 @@ const tools = [
   },
 ];
 
-async function executeTool(name, input) {
+async function executeTool(name, input, userId) {
   switch (name) {
     case "get_all_customers":
-      return db.getAllCustomers();
+      return db.getAllCustomers(userId);
     case "get_customer_by_name":
-      return db.searchCustomersByName(input.name);
+      return db.searchCustomersByName(userId, input.name);
     case "get_customer_by_id":
-      return (await db.getCustomerById(input.id)) ?? { error: `No customer with id ${input.id}` };
+      return (await db.getCustomerById(userId, input.id)) ?? { error: `No customer with id ${input.id}` };
     case "add_customer":
-      return db.createCustomer(input);
+      return db.createCustomer(userId, input);
     case "update_customer":
-      return (await db.updateCustomer(input.id, input)) ?? { error: `No customer with id ${input.id}` };
+      return (await db.updateCustomer(userId, input.id, input)) ?? { error: `No customer with id ${input.id}` };
     case "delete_customer":
-      return (await db.deleteCustomer(input.id)) ?? { error: `No customer with id ${input.id}` };
+      return (await db.deleteCustomer(userId, input.id)) ?? { error: `No customer with id ${input.id}` };
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
@@ -108,9 +114,10 @@ function getClient() {
 /**
  * Run the agent over a conversation.
  * @param {{role: "user"|"assistant", content: string}[]} history plain-text chat turns, last one from the user
+ * @param {{id: number, name: string, email: string}} user the logged-in sales user; every tool is scoped to them
  * @returns {Promise<{reply: string, toolCalls: {name: string, input: object}[]}>}
  */
-export async function runAgent(history) {
+export async function runAgent(history, user) {
   const anthropic = getClient();
   const messages = history.map(({ role, content }) => ({ role, content }));
   const toolCalls = [];
@@ -120,11 +127,10 @@ export async function runAgent(history) {
       model: MODEL,
       max_tokens: 16000,
       thinking: { type: "adaptive" },
-      output_config: { effort: "low" },
+      output_config: { effort: EFFORT },
       // Route refused requests to a fallback model automatically.
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
-      system: SYSTEM_PROMPT,
+      ...(SUPPORTS_FALLBACK && { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" }),
+      system: systemPromptFor(user),
       tools,
       messages,
     });
@@ -148,7 +154,7 @@ export async function runAgent(history) {
     for (const block of response.content.filter((b) => b.type === "tool_use")) {
       toolCalls.push({ name: block.name, input: block.input });
       try {
-        const result = await executeTool(block.name, block.input);
+        const result = await executeTool(block.name, block.input, user.id);
         toolResults.push({ type: "tool_result", tool_use_id: block.id, content: JSON.stringify(result) });
       } catch (err) {
         toolResults.push({ type: "tool_result", tool_use_id: block.id, content: err.message, is_error: true });

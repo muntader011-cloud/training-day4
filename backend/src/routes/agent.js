@@ -16,7 +16,7 @@ router.post("/", async (req, res) => {
     : [];
 
   try {
-    const result = await runAgent([...validHistory, { role: "user", content: message.trim() }]);
+    const result = await runAgent([...validHistory, { role: "user", content: message.trim() }], req.user);
     res.json(result);
   } catch (err) {
     if (err instanceof Anthropic.RateLimitError) {

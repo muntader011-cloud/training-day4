@@ -1,6 +1,6 @@
 # Spec 01: User Registration, Login and Per-User Customer Access
 
-**Status:** Draft, awaiting approval
+**Status:** Implemented (2026-10-29)
 **Date:** 2026-10-29
 
 ## 1. Background

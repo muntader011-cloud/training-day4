@@ -1,7 +1,7 @@
 # Plan 01: User Registration, Login and Per-User Customer Access
 
 **Spec:** [`_specs/01_spec_userlogin_registration.md`](../_specs/01_spec_userlogin_registration.md)
-**Status:** Draft, awaiting approval
+**Status:** Implemented (2026-10-29)
 **Date:** 2026-10-29
 
 ## 0. Prerequisites
