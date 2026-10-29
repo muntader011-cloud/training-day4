@@ -1,0 +1,13 @@
+Initialize this a a single git repository
+I will be pushing this to github make sure
+all  private keys are not pushed into github.
+This will be later integrated with vercel for deployment.
+ 
+commit all changes before pushing to github
+
+git remote add origin https://github.com/muntader011-cloud/training-day4.git
+git branch -M main
+git push -u origin main
+
+Make this project ready for Vercel deployment ,make sure swagger UI files and endpoint works
+correctly
